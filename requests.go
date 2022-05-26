@@ -2,14 +2,13 @@ package nekoswrapper
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 )
 
-var client *http.Client
-
 func GetEndpoints() (Endpoints, error) {
-	resp, err := client.Get(Link + "endpoints")
+	resp, err := http.Get(Link + "endpoints")
 	if err != nil {
 		return nil, err
 	}
@@ -23,20 +22,25 @@ func GetEndpoints() (Endpoints, error) {
 }
 
 func GetResource(str string, num ...int) (Resources, error) {
+	var n int
 	if len(num) == 0 || num[0] < 1 {
-		num[0] = 1
+		n = 1
 	} else if num[0] > 20 {
-		num[0] = 20
+		n = 20
+	} else {
+		n = num[0]
 	}
-	resp, err := client.Get(fmt.Sprintf("%s%s?amount=%d", Link, str, num[0]))
+	resp, err := http.Get(fmt.Sprintf("%s%s?amount=%d", Link, str, n))
 	if err != nil {
 		return nil, err
+	}
+	var res map[string]Resources
+	if err = json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, errors.New("this endpoint doesn't exist")
 	}
 	defer resp.Body.Close()
-	var res Resources
-	err = json.NewDecoder(resp.Body).Decode(&res)
-	if err != nil {
-		return nil, err
+	if val, ok := res["results"]; ok {
+		return val, nil
 	}
-	return res, nil
+	return nil, errors.New("no results")
 }
